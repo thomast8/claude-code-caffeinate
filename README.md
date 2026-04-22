@@ -31,23 +31,28 @@ Add this repo as a Claude Code marketplace, then install:
 
 That's it for the hook side. `caffeinate` now holds only while Claude is processing; session metadata lands in `/tmp/claude-caffeinate/`.
 
-### 2. The SwiftBar dashboard (optional)
+### 2. The SwiftBar dashboard (auto-installed on first session)
 
-If you want the menu bar icon and per-session breakdown, install SwiftBar and wire up the plugin. The plugin ships with an installer script that lands in your `$PATH` automatically when the plugin is enabled:
+When you start your first Claude Code session after enabling the plugin, the SessionStart hook **automatically fires `install-swiftbar` in the background** — installs SwiftBar via brew, creates the symlink, sets SwiftBar's plugin-folder preference, launches the app. You'll see a systemMessage in Claude Code confirming this and pointing at the install log.
+
+**One unavoidable manual step:** when SwiftBar launches for the first time, open its Preferences → **General** → **Plugin Folder** and re-pick `~/Library/Application Support/SwiftBar/Plugins/`. In the file picker, **Cmd+Shift+G** lets you type the path directly. This is a macOS sandboxing requirement (security-scoped bookmark) that can't be scripted away.
+
+**Opt out** of auto-install by setting `CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL=1` in your shell rc before enabling the plugin. To re-trigger it later, delete the marker at `${CLAUDE_PLUGIN_DATA}/setup-attempted`.
+
+If you want to run the installer manually (to re-check state after upgrades, etc.), it's on your PATH while the plugin is enabled:
 
 ```bash
-install-swiftbar
+install-swiftbar          # idempotent, safe to re-run
+install-swiftbar --status # diagnostic only
 ```
 
-The script is idempotent — re-run any time to re-check state or apply updates. It:
+The script:
 
 1. Installs SwiftBar via `brew install --cask swiftbar` (user-scope `~/Applications/` to avoid sudo).
 2. Creates `~/Library/Application Support/SwiftBar/Plugins/` if missing.
 3. Symlinks `claude-activity.5s.sh` from this plugin into that folder.
 4. Sets SwiftBar's `PluginDirectory` preference.
 5. Launches SwiftBar.
-
-**One manual step:** on first install, SwiftBar needs a user-granted security-scoped bookmark for its plugin folder. Open SwiftBar Preferences → **General** → **Plugin Folder** → re-pick `~/Library/Application Support/SwiftBar/Plugins/`. In the file picker, **Cmd+Shift+G** lets you type the path directly. This is a macOS sandboxing requirement that can't be scripted away.
 
 Useful flags:
 

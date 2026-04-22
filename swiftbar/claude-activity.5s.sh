@@ -1,6 +1,6 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Activity</bitbar.title>
-# <bitbar.version>v1.2</bitbar.version>
+# <bitbar.version>v1.3</bitbar.version>
 # <bitbar.author>Thomas Tiotto</bitbar.author>
 # <bitbar.desc>Live Claude Code session tracker with caffeinate status</bitbar.desc>
 # <bitbar.dependencies>bash, jq, caffeinate</bitbar.dependencies>
