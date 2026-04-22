@@ -1,6 +1,6 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Activity</bitbar.title>
-# <bitbar.version>v1.4</bitbar.version>
+# <bitbar.version>v1.5</bitbar.version>
 # <bitbar.author>Thomas Tiotto</bitbar.author>
 # <bitbar.desc>Live Claude Code session tracker with caffeinate status</bitbar.desc>
 # <bitbar.dependencies>bash, jq, caffeinate</bitbar.dependencies>
@@ -29,8 +29,26 @@ human_age() {
   echo "$((secs / 86400))d ago"
 }
 
+# A process is "truly alive" if kill -0 succeeds AND it's not in Z (zombie)
+# or E (being-reaped) state. macOS leaves defunct Claude Code processes in
+# state ?Es — comm renamed to "(version)", no controlling terminal — after
+# terminal windows get force-closed. kill -0 still returns success for these,
+# so we need the ps stat check to catch them.
+claude_process_alive() {
+  local pid="$1"
+  [ -n "$pid" ] && [ "$pid" != "null" ] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  local stat
+  stat=$(ps -p "$pid" -o stat= 2>/dev/null | tr -d ' ')
+  case "$stat" in
+    *Z*|*E*) return 1 ;;
+    "")      return 1 ;;
+  esac
+  return 0
+}
+
 # Purge metadata for dead sessions. A session is dead if either:
-#   (a) its recorded parent_pid is no longer alive, OR
+#   (a) its recorded parent_pid is no longer alive (gone, zombie, or being reaped)
 #   (b) it has no parent_pid and hasn't had activity for STALE_THRESHOLD seconds
 # Case (a) is the reliable modern path; case (b) handles legacy records from
 # older plugin versions AND crashed sessions whose SessionEnd never fired.
@@ -45,7 +63,7 @@ purge_dead_sessions() {
     ppid=$(jq -r '.parent_pid // empty' "$f" 2>/dev/null)
     last=$(jq -r '.last_activity_at // 0' "$f" 2>/dev/null)
     local should_purge=0
-    if [ -n "$ppid" ] && [ "$ppid" != "null" ] && ! kill -0 "$ppid" 2>/dev/null; then
+    if [ -n "$ppid" ] && [ "$ppid" != "null" ] && ! claude_process_alive "$ppid"; then
       should_purge=1
     elif { [ -z "$ppid" ] || [ "$ppid" = "null" ]; } && [ "$((now - last))" -gt "$STALE_THRESHOLD" ]; then
       should_purge=1
@@ -145,6 +163,16 @@ else
     age_fmt=$(human_age "$((now - last))")
     branch_fmt=""
     [ -n "$branch" ] && [ "$branch" != "null" ] && branch_fmt=" @ ${branch}"
+
+    # Live-read title from Claude Code's per-PID sessions file if available.
+    # This avoids the two-turn lag that happens when an async renamer hook
+    # (e.g. one that calls an LLM) completes AFTER the Stop that would
+    # otherwise stamp the title into our metadata cache.
+    ppid=$(jq -r '.parent_pid // empty' "$sfile" 2>/dev/null)
+    if [ -n "$ppid" ] && [ "$ppid" != "null" ] && [ -f "$HOME/.claude/sessions/$ppid.json" ]; then
+      live_title=$(jq -r '.name // empty' "$HOME/.claude/sessions/$ppid.json" 2>/dev/null)
+      [ -n "$live_title" ] && title="$live_title"
+    fi
 
     # Primary label: session title when set (via /rename or any auto-renamer),
     # otherwise the project directory name.

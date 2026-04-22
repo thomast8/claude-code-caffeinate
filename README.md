@@ -101,14 +101,31 @@ Set this in your shell rc. The hook scripts read it at invocation time.
 
 ## Optional: statusline indicator
 
-If you want a ☕ indicator inside your Claude Code TUI itself (in addition to or instead of the menu bar), add this snippet to your user-level statusline command (`~/.claude/statusline-command.sh` or equivalent):
+If you want a mini-dashboard inside your Claude Code TUI itself (in addition to or instead of the menu bar), add this snippet to your user-level statusline command (`~/.claude/statusline-command.sh` or equivalent). It mirrors the menu bar's 3-state display:
+
+- `☕ N` — N sessions actively processing, caffeinate held
+- `💤 N` — N sessions open but all idle
+- `(empty)` — no sessions open
 
 ```bash
-# Append to your statusline output when our hook-managed caffeinate is live
-if [ -f "/tmp/claude-caffeinate/caffeinate.pid" ] && \
-   kill -0 "$(cat /tmp/claude-caffeinate/caffeinate.pid 2>/dev/null)" 2>/dev/null; then
-  printf ' | ☕'
+# Paste near the end of your statusline script, before the final echo.
+# Assumes you have DIM, YELLOW, RESET ANSI vars defined — tweak to match.
+CCAFF_STATE="/tmp/claude-caffeinate"
+caff_ind=""
+if [ -d "$CCAFF_STATE" ]; then
+  ccaff_active=$(find "$CCAFF_STATE/active" -type f 2>/dev/null | wc -l | tr -d ' ')
+  ccaff_sessions=$(find "$CCAFF_STATE/sessions" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+  ccaff_on=0
+  if [ -f "$CCAFF_STATE/caffeinate.pid" ] && kill -0 "$(cat "$CCAFF_STATE/caffeinate.pid" 2>/dev/null)" 2>/dev/null; then
+    ccaff_on=1
+  fi
+  if [ "$ccaff_on" -eq 1 ]; then
+    caff_ind=" ${DIM}|${RESET} ${YELLOW}☕ ${ccaff_active}${RESET}"
+  elif [ "$ccaff_sessions" -gt 0 ] 2>/dev/null; then
+    caff_ind=" ${DIM}|${RESET} ${DIM}💤 ${ccaff_sessions}${RESET}"
+  fi
 fi
+# Append $caff_ind to your final output line
 ```
 
 The plugin itself does not ship a statusline — plugin-level statuslines override the user's full statusline, which is too intrusive for a small indicator. The snippet above is a drop-in add for whatever custom statusline you already use.
