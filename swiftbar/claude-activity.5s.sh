@@ -1,6 +1,6 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Activity</bitbar.title>
-# <bitbar.version>v1.5</bitbar.version>
+# <bitbar.version>v1.6</bitbar.version>
 # <bitbar.author>Thomas Tiotto</bitbar.author>
 # <bitbar.desc>Live Claude Code session tracker with caffeinate status</bitbar.desc>
 # <bitbar.dependencies>bash, jq, caffeinate</bitbar.dependencies>
@@ -13,6 +13,18 @@ STATE="${CLAUDE_STATE_DIR:-/tmp/claude-caffeinate}"
 SESSIONS_DIR="$STATE/sessions"
 MARKERS_DIR="$STATE/active"
 PIDFILE="$STATE/caffeinate.pid"
+
+# Resolve real location of this script so we can reference sibling files
+# (e.g. resume-session.sh) even when SwiftBar accesses us via a symlink.
+_SELF="${BASH_SOURCE[0]}"
+while [ -L "$_SELF" ]; do
+  _lnk=$(readlink "$_SELF")
+  case "$_lnk" in
+    /*) _SELF="$_lnk" ;;
+    *)  _SELF="$(cd "$(dirname "$_SELF")" && pwd)/$_lnk" ;;
+  esac
+done
+PLUGIN_DIR="$(cd "$(dirname "$_SELF")" && pwd)"
 
 human_tokens() {
   local n="${1:-0}"
@@ -190,9 +202,15 @@ else
 
     # First line: title|project + branch + tokens + age
     echo "${dot}${label}${branch_fmt}  •  ${turns} turns, ${in_fmt} in / ${out_fmt} out  •  ${age_fmt} | ${color} size=12"
-    # Submenu: actionable items only
+    # Submenu: actionable items
+    if [ -n "$sid" ] && [ "$sid" != "null" ] && [ "$sid" != "?" ]; then
+      RESUME_HELPER="$PLUGIN_DIR/resume-session.sh"
+      if [ -x "$RESUME_HELPER" ]; then
+        # Opens Terminal.app, cds to project, and runs claude --resume <id>
+        echo "--Resume session | bash=$RESUME_HELPER param1=$sid param2=$cwd terminal=true size=11"
+      fi
+    fi
     if [ -n "$cwd" ] && [ "$cwd" != "null" ]; then
-      echo "--Open in Terminal | bash=/usr/bin/open param1=-a param2=Terminal param3=$cwd terminal=false size=11"
       if [ -n "$EDITOR_APP" ]; then
         echo "--Open in $EDITOR_APP | bash=/usr/bin/open param1=-a param2=$EDITOR_APP param3=$cwd terminal=false size=11"
       else
