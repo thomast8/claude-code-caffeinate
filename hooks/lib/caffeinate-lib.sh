@@ -75,3 +75,23 @@ claude_git_branch() {
   [ -z "$dir" ] && return
   GIT_OPTIONAL_LOCKS=0 git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || true
 }
+
+# Resolve the session title set by /rename or any auto-renamer hook.
+# Primary source: $HOME/.claude/sessions/<ppid>.json .name (Claude Code keeps
+# this in sync whenever the title changes).
+# Fallback: last "custom-title" entry in the transcript JSONL.
+# Args: <parent_pid> <transcript_path>
+# Prints the title or an empty string.
+claude_resolve_title() {
+  local ppid="$1"
+  local transcript="$2"
+  local pfile="$HOME/.claude/sessions/$ppid.json"
+  local title=""
+  if [ -n "$ppid" ] && [ -f "$pfile" ]; then
+    title=$(jq -r '.name // empty' "$pfile" 2>/dev/null || true)
+  fi
+  if [ -z "$title" ] && [ -n "$transcript" ] && [ -f "$transcript" ]; then
+    title=$(jq -sr 'map(select(.type=="custom-title") | .customTitle) | last // empty' "$transcript" 2>/dev/null || true)
+  fi
+  printf '%s' "$title"
+}

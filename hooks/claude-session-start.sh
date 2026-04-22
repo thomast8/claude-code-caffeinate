@@ -16,6 +16,7 @@ INPUT=$(cat)
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // "unknown"' 2>/dev/null || true)
+TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 [ -z "$SID" ] && exit 0
 
 claude_ensure_state_dir
@@ -44,14 +45,16 @@ if [ ! -f "$SFILE" ]; then
   NOW=$(date +%s)
   PROJECT=$([ -n "$CWD" ] && basename "$CWD" || echo "unknown")
   BRANCH=$(claude_git_branch "$CWD")
+  TITLE=$(claude_resolve_title "$PPID" "$TRANSCRIPT")
   jq -n --arg sid "$SID" --arg cwd "$CWD" --arg project "$PROJECT" \
         --arg branch "$BRANCH" --arg now "$NOW" --arg source "$SOURCE" \
-        --arg ppid "$PPID" \
+        --arg ppid "$PPID" --arg title "$TITLE" \
     '{
       session_id: $sid,
       cwd: $cwd,
       project: $project,
       branch: $branch,
+      title: $title,
       source: $source,
       parent_pid: ($ppid | tonumber),
       started_at: ($now | tonumber),

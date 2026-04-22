@@ -1,6 +1,6 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Activity</bitbar.title>
-# <bitbar.version>v1.3</bitbar.version>
+# <bitbar.version>v1.4</bitbar.version>
 # <bitbar.author>Thomas Tiotto</bitbar.author>
 # <bitbar.desc>Live Claude Code session tracker with caffeinate status</bitbar.desc>
 # <bitbar.dependencies>bash, jq, caffeinate</bitbar.dependencies>
@@ -131,6 +131,7 @@ else
 
     sid=$(jq -r '.session_id        // "?"'       "$sfile" 2>/dev/null)
     project=$(jq -r '.project       // "unknown"' "$sfile" 2>/dev/null)
+    title=$(jq -r '.title           // ""'        "$sfile" 2>/dev/null)
     branch=$(jq -r '.branch         // ""'        "$sfile" 2>/dev/null)
     status=$(jq -r '.status         // "idle"'    "$sfile" 2>/dev/null)
     turns=$(jq -r '.turns           // 0'         "$sfile" 2>/dev/null)
@@ -142,9 +143,16 @@ else
     in_fmt=$(human_tokens "$in_tok")
     out_fmt=$(human_tokens "$out_tok")
     age_fmt=$(human_age "$((now - last))")
-    sid_short=$(echo "$sid" | cut -c1-8)
     branch_fmt=""
     [ -n "$branch" ] && [ "$branch" != "null" ] && branch_fmt=" @ ${branch}"
+
+    # Primary label: session title when set (via /rename or any auto-renamer),
+    # otherwise the project directory name.
+    if [ -n "$title" ] && [ "$title" != "null" ]; then
+      label="$title"
+    else
+      label="$project"
+    fi
 
     if [ "$status" = "active" ]; then
       dot="● "; color="color=orange"
@@ -152,8 +160,8 @@ else
       dot="○ "; color="color=#888888"
     fi
 
-    # First line: project + branch + tokens + age
-    echo "${dot}${project}${branch_fmt}  •  ${turns} turns, ${in_fmt} in / ${out_fmt} out  •  ${age_fmt} | ${color} size=12"
+    # First line: title|project + branch + tokens + age
+    echo "${dot}${label}${branch_fmt}  •  ${turns} turns, ${in_fmt} in / ${out_fmt} out  •  ${age_fmt} | ${color} size=12"
     # Submenu: actionable items only
     if [ -n "$cwd" ] && [ "$cwd" != "null" ]; then
       echo "--Open in Terminal | bash=/usr/bin/open param1=-a param2=Terminal param3=$cwd terminal=false size=11"
