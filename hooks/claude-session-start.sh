@@ -55,9 +55,9 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     if [ -n "$has_cmd" ] && [ -z "$has_ri" ]; then
       mkdir -p "$DATA_DIR"
       touch "$REFRESH_MARKER"
-      REFRESH_MSG='Your statusLine in ~/.claude/settings.json is missing "refreshInterval": 5 — without it, idle Claude Code sessions never redraw the ☕ indicator. Add it inside your statusLine block:
+      REFRESH_MSG='Your statusLine in ~/.claude/settings.json is missing "refreshInterval" — without it, the status line only redraws when events happen in that session (tool use, etc.) and stays frozen in idle sessions. Add "refreshInterval": 5 to your statusLine block:
   "statusLine": { "type": "command", "command": "...", "refreshInterval": 5 }
-Delete '"$REFRESH_MARKER"' to re-trigger this nudge.'
+This is a one-line fix that benefits any custom statusLine, not just the ☕ indicator. Delete '"$REFRESH_MARKER"' to re-trigger this nudge.'
     fi
   fi
 fi
