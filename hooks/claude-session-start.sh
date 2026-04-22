@@ -39,6 +39,29 @@ if [ "${CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL:-0}" != "1" ] && [ -n "${CLAUDE_PLUGI
   fi
 fi
 
+# --- Nudge: add refreshInterval to statusLine (once per plugin install) ---
+# Without refreshInterval, idle sessions never redraw the ☕ count. We check
+# once whether settings.json has statusLine.command but no refreshInterval,
+# and emit a targeted systemMessage with the exact fix. Separate marker from
+# the SwiftBar one so each advisory fires independently.
+REFRESH_MSG=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
+  REFRESH_MARKER="$DATA_DIR/statusline-refresh-nudged"
+  SETTINGS="$HOME/.claude/settings.json"
+  if [ ! -f "$REFRESH_MARKER" ] && [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
+    has_cmd=$(jq -r '.statusLine.command // empty' "$SETTINGS" 2>/dev/null)
+    has_ri=$(jq -r '.statusLine.refreshInterval // empty' "$SETTINGS" 2>/dev/null)
+    if [ -n "$has_cmd" ] && [ -z "$has_ri" ]; then
+      mkdir -p "$DATA_DIR"
+      touch "$REFRESH_MARKER"
+      REFRESH_MSG='Your statusLine in ~/.claude/settings.json is missing "refreshInterval": 5 — without it, idle Claude Code sessions never redraw the ☕ indicator. Add it inside your statusLine block:
+  "statusLine": { "type": "command", "command": "...", "refreshInterval": 5 }
+Delete '"$REFRESH_MARKER"' to re-trigger this nudge.'
+    fi
+  fi
+fi
+
 # --- Session metadata (skip if already exists, e.g. on resume) ---
 SFILE="$SESSIONS/$SID.json"
 if [ ! -f "$SFILE" ]; then
@@ -66,9 +89,12 @@ if [ ! -f "$SFILE" ]; then
     }' > "$SFILE"
 fi
 
-# Emit systemMessage if we triggered auto-install so the user knows what's happening
-if [ -n "$AUTOINSTALL_MSG" ]; then
-  jq -n --arg msg "$AUTOINSTALL_MSG" '{systemMessage: $msg}'
+# Emit any advisory messages (SwiftBar setup and/or refreshInterval nudge)
+COMBINED_MSG=""
+[ -n "$AUTOINSTALL_MSG" ] && COMBINED_MSG="$AUTOINSTALL_MSG"
+[ -n "$REFRESH_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${REFRESH_MSG}"
+if [ -n "$COMBINED_MSG" ]; then
+  jq -n --arg msg "$COMBINED_MSG" '{systemMessage: $msg}'
 fi
 
 exit 0
