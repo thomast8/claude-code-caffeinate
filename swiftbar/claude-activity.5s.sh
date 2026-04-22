@@ -1,6 +1,6 @@
 #!/bin/bash
 # <bitbar.title>Claude Code Activity</bitbar.title>
-# <bitbar.version>v1.6</bitbar.version>
+# <bitbar.version>v1.7</bitbar.version>
 # <bitbar.author>Thomas Tiotto</bitbar.author>
 # <bitbar.desc>Live Claude Code session tracker with caffeinate status</bitbar.desc>
 # <bitbar.dependencies>bash, jq, caffeinate</bitbar.dependencies>
@@ -93,24 +93,7 @@ purge_dead_sessions() {
   fi
 }
 
-# Resolve a preferred macOS editor app. Priority: CLAUDE_CAFFEINATE_EDITOR env
-# override, then common editors detected by .app bundle presence. Empty if none.
-resolve_editor_app() {
-  if [ -n "${CLAUDE_CAFFEINATE_EDITOR:-}" ]; then
-    echo "${CLAUDE_CAFFEINATE_EDITOR}"
-    return
-  fi
-  local app
-  for app in "Cursor" "Visual Studio Code" "Zed" "Sublime Text" "Nova"; do
-    if [ -d "/Applications/$app.app" ] || [ -d "$HOME/Applications/$app.app" ]; then
-      echo "$app"
-      return
-    fi
-  done
-}
-
 purge_dead_sessions
-EDITOR_APP=$(resolve_editor_app)
 
 total_sessions=0
 active_sessions=0
@@ -208,13 +191,6 @@ else
       if [ -x "$RESUME_HELPER" ]; then
         # Opens Terminal.app, cds to project, and runs claude --resume <id>
         echo "--Resume session | bash=$RESUME_HELPER param1=$sid param2=$cwd terminal=true size=11"
-      fi
-    fi
-    if [ -n "$cwd" ] && [ "$cwd" != "null" ]; then
-      if [ -n "$EDITOR_APP" ]; then
-        echo "--Open in $EDITOR_APP | bash=/usr/bin/open param1=-a param2=$EDITOR_APP param3=$cwd terminal=false size=11"
-      else
-        echo "--Open in Finder | bash=/usr/bin/open param1=$cwd terminal=false size=11"
       fi
     fi
   done
