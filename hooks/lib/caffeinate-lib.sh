@@ -76,6 +76,13 @@ claude_git_branch() {
   GIT_OPTIONAL_LOCKS=0 git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || true
 }
 
+# Push an immediate SwiftBar refresh — bypasses the plugin's 5s timer, which
+# can get unreliable when macOS TCC invalidates the security-scoped bookmark.
+# Silent on failure (SwiftBar not running, URL scheme unregistered, etc.).
+claude_nudge_swiftbar() {
+  (/usr/bin/open "swiftbar://refreshallplugins" >/dev/null 2>&1 &)
+}
+
 # Resolve the session title set by /rename or any auto-renamer hook.
 # Primary source: $HOME/.claude/sessions/<ppid>.json .name (Claude Code keeps
 # this in sync whenever the title changes).

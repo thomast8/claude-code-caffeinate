@@ -39,25 +39,37 @@ if [ "${CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL:-0}" != "1" ] && [ -n "${CLAUDE_PLUGI
   fi
 fi
 
-# --- Nudge: add refreshInterval to statusLine (once per plugin install) ---
-# Without refreshInterval, idle sessions never redraw the ☕ count. We check
-# once whether settings.json has statusLine.command but no refreshInterval,
-# and emit a targeted systemMessage with the exact fix. Separate marker from
-# the SwiftBar one so each advisory fires independently.
-REFRESH_MSG=""
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+# --- Auto-wrap statusLine on first run (once per plugin install) ---
+# Replace user's statusLine.command with our wrapper that calls the original
+# AND appends the ☕/💤 indicator. Also sets refreshInterval:5 so idle
+# sessions don't freeze. Original command is backed up for clean revert.
+# Opt out with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1. Fully reversible via
+# `install-swiftbar --uninstall`.
+STATUSLINE_MSG=""
+if [ "${CLAUDE_CAFFEINATE_SKIP_STATUSLINE:-0}" != "1" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
-  REFRESH_MARKER="$DATA_DIR/statusline-refresh-nudged"
+  STATUSLINE_MARKER="$DATA_DIR/statusline-wrapped"
+  ORIG_CMD_BACKUP="$DATA_DIR/original-statusline-command"
   SETTINGS="$HOME/.claude/settings.json"
-  if [ ! -f "$REFRESH_MARKER" ] && [ -f "$SETTINGS" ] && command -v jq >/dev/null 2>&1; then
-    has_cmd=$(jq -r '.statusLine.command // empty' "$SETTINGS" 2>/dev/null)
-    has_ri=$(jq -r '.statusLine.refreshInterval // empty' "$SETTINGS" 2>/dev/null)
-    if [ -n "$has_cmd" ] && [ -z "$has_ri" ]; then
+  WRAPPER="$CLAUDE_PLUGIN_ROOT/statusline/wrapper.sh"
+  if [ ! -f "$STATUSLINE_MARKER" ] && [ -f "$SETTINGS" ] && [ -x "$WRAPPER" ] \
+     && command -v jq >/dev/null 2>&1; then
+    cur_cmd=$(jq -r '.statusLine.command // empty' "$SETTINGS" 2>/dev/null)
+    # Only wrap if user has a command set and it isn't already our wrapper.
+    if [ -n "$cur_cmd" ] && ! printf '%s' "$cur_cmd" | grep -q 'statusline/wrapper\.sh'; then
       mkdir -p "$DATA_DIR"
-      touch "$REFRESH_MARKER"
-      REFRESH_MSG='Your statusLine in ~/.claude/settings.json is missing "refreshInterval" — without it, the status line only redraws when events happen in that session (tool use, etc.) and stays frozen in idle sessions. Add "refreshInterval": 5 to your statusLine block:
-  "statusLine": { "type": "command", "command": "...", "refreshInterval": 5 }
-This is a one-line fix that benefits any custom statusLine, not just the ☕ indicator. Delete '"$REFRESH_MARKER"' to re-trigger this nudge.'
+      # Back up original command so uninstall can restore it
+      printf '%s' "$cur_cmd" > "$ORIG_CMD_BACKUP"
+      # Patch settings.json: point command at wrapper, ensure refreshInterval
+      tmp=$(mktemp)
+      jq --arg cmd "$WRAPPER" \
+         '.statusLine.command = $cmd
+          | (if (.statusLine.refreshInterval // null) == null
+             then .statusLine.refreshInterval = 5
+             else . end)' \
+         "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+      touch "$STATUSLINE_MARKER"
+      STATUSLINE_MSG='Installed a statusLine wrapper that keeps your existing statusline AND appends the ☕/💤 session-activity indicator. Original command backed up at '"$ORIG_CMD_BACKUP"'. Revert with: install-swiftbar --uninstall. Opt out on new installs with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1.'
     fi
   fi
 fi
@@ -89,12 +101,13 @@ if [ ! -f "$SFILE" ]; then
     }' > "$SFILE"
 fi
 
-# Emit any advisory messages (SwiftBar setup and/or refreshInterval nudge)
+# Emit any advisory messages (SwiftBar setup and/or statusLine wrap notice)
 COMBINED_MSG=""
 [ -n "$AUTOINSTALL_MSG" ] && COMBINED_MSG="$AUTOINSTALL_MSG"
-[ -n "$REFRESH_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${REFRESH_MSG}"
+[ -n "$STATUSLINE_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${STATUSLINE_MSG}"
 if [ -n "$COMBINED_MSG" ]; then
   jq -n --arg msg "$COMBINED_MSG" '{systemMessage: $msg}'
 fi
 
+claude_nudge_swiftbar
 exit 0

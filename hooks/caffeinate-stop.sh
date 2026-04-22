@@ -39,4 +39,5 @@ if [ -n "$SID" ] && [ -f "$SFILE" ]; then
      "$SFILE" > "$tmp" && mv "$tmp" "$SFILE"
 fi
 
+claude_nudge_swiftbar
 exit 0

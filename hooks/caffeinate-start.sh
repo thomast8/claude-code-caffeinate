@@ -58,4 +58,5 @@ else
     }' > "$SFILE"
 fi
 
+claude_nudge_swiftbar
 exit 0

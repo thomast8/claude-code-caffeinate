@@ -262,8 +262,28 @@ do_install() {
 }
 
 do_uninstall() {
-  header "Uninstalling (SwiftBar pref + symlink only unless --remove-app)"
+  header "Uninstalling (SwiftBar pref + symlink + statusLine revert unless --remove-app)"
   check_macos
+
+  # Revert the auto-wrapped statusLine, if we installed one
+  local data_dir="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
+  local sline_marker="$data_dir/statusline-wrapped"
+  local sline_backup="$data_dir/original-statusline-command"
+  local settings="$HOME/.claude/settings.json"
+  if [ -f "$sline_marker" ] && [ -f "$sline_backup" ] && [ -f "$settings" ] && command -v jq >/dev/null 2>&1; then
+    local orig; orig=$(cat "$sline_backup")
+    local tmp; tmp=$(mktemp)
+    if jq --arg cmd "$orig" '.statusLine.command = $cmd' "$settings" > "$tmp"; then
+      mv "$tmp" "$settings"
+      rm -f "$sline_marker"
+      ok "restored statusLine.command from backup"
+      info "  refreshInterval left in place (harmless; delete it manually if undesired)"
+    else
+      rm -f "$tmp"
+      warn "failed to restore statusLine; backup preserved at $sline_backup"
+    fi
+  fi
+
   if defaults read "$SWIFTBAR_DEFAULTS_DOMAIN" PluginDirectory >/dev/null 2>&1; then
     defaults delete "$SWIFTBAR_DEFAULTS_DOMAIN" PluginDirectory 2>/dev/null || true
     defaults delete "$SWIFTBAR_DEFAULTS_DOMAIN" PluginDirectoryResolvedPath 2>/dev/null || true
