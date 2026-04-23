@@ -1,11 +1,6 @@
 #!/bin/bash
-# SessionStart: create session metadata file if absent so the dashboard
-# can display idle (just-opened) sessions. Does NOT touch caffeinate.
-#
-# Also: on the very first SessionStart after the plugin is enabled, fire
-# bin/install-swiftbar in the background to bootstrap the optional menu-bar
-# dashboard. A persistent marker in ${CLAUDE_PLUGIN_DATA} ensures this
-# happens exactly once. User can opt out with CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL=1.
+# SessionStart: create session metadata file if absent so the statusLine
+# indicator can display idle (just-opened) sessions. Does NOT touch caffeinate.
 set -eu
 
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,30 +16,11 @@ TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/nul
 
 claude_ensure_state_dir
 
-# --- Auto-install SwiftBar dashboard on first run ---
-# Only active when running as a Claude Code plugin (CLAUDE_PLUGIN_ROOT set) —
-# a user-wired copy of this hook in ~/.claude/hooks/ will silently skip.
-AUTOINSTALL_MSG=""
-if [ "${CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL:-0}" != "1" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
-  MARKER="$DATA_DIR/setup-attempted"
-  INSTALLER="$CLAUDE_PLUGIN_ROOT/bin/install-swiftbar"
-  if [ ! -f "$MARKER" ] && [ -x "$INSTALLER" ]; then
-    mkdir -p "$DATA_DIR"
-    touch "$MARKER"
-    LOG="$DATA_DIR/install-swiftbar.log"
-    nohup "$INSTALLER" >"$LOG" 2>&1 &
-    disown 2>/dev/null || true
-    AUTOINSTALL_MSG="Setting up the SwiftBar menu-bar dashboard in the background. One manual step needed: once SwiftBar launches, open its Preferences → General → Plugin Folder and re-pick ~/Library/Application Support/SwiftBar/Plugins/ (Cmd+Shift+G in the picker lets you type the path). That grants the macOS security bookmark SwiftBar needs for its refresh timer. Install log: $LOG. Opt out next time with CLAUDE_CAFFEINATE_SKIP_AUTOINSTALL=1, or delete $MARKER to re-trigger."
-  fi
-fi
-
 # --- Auto-wrap statusLine on first run (once per plugin install) ---
 # Replace user's statusLine.command with our wrapper that calls the original
 # AND appends the ☕/💤 indicator. Also sets refreshInterval:5 so idle
 # sessions don't freeze. Original command is backed up for clean revert.
-# Opt out with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1. Fully reversible via
-# `install-swiftbar --uninstall`.
+# Opt out with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1. Revert with bin/unwrap-statusline.
 STATUSLINE_MSG=""
 if [ "${CLAUDE_CAFFEINATE_SKIP_STATUSLINE:-0}" != "1" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
@@ -58,7 +34,7 @@ if [ "${CLAUDE_CAFFEINATE_SKIP_STATUSLINE:-0}" != "1" ] && [ -n "${CLAUDE_PLUGIN
     # Only wrap if user has a command set and it isn't already our wrapper.
     if [ -n "$cur_cmd" ] && ! printf '%s' "$cur_cmd" | grep -q 'statusline/wrapper\.sh'; then
       mkdir -p "$DATA_DIR"
-      # Back up original command so uninstall can restore it
+      # Back up original command so unwrap-statusline can restore it
       printf '%s' "$cur_cmd" > "$ORIG_CMD_BACKUP"
       # Patch settings.json: point command at wrapper, ensure refreshInterval
       tmp=$(mktemp)
@@ -69,7 +45,7 @@ if [ "${CLAUDE_CAFFEINATE_SKIP_STATUSLINE:-0}" != "1" ] && [ -n "${CLAUDE_PLUGIN
              else . end)' \
          "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
       touch "$STATUSLINE_MARKER"
-      STATUSLINE_MSG='Installed a statusLine wrapper that keeps your existing statusline AND appends the ☕/💤 session-activity indicator. Original command backed up at '"$ORIG_CMD_BACKUP"'. Revert with: install-swiftbar --uninstall. Opt out on new installs with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1.'
+      STATUSLINE_MSG='Installed a statusLine wrapper that keeps your existing statusline AND appends the ☕/💤 session-activity indicator. Original command backed up at '"$ORIG_CMD_BACKUP"'. Revert with: unwrap-statusline. Opt out on new installs with CLAUDE_CAFFEINATE_SKIP_STATUSLINE=1.'
     fi
   fi
 fi
@@ -101,13 +77,8 @@ if [ ! -f "$SFILE" ]; then
     }' > "$SFILE"
 fi
 
-# Emit any advisory messages (SwiftBar setup and/or statusLine wrap notice)
-COMBINED_MSG=""
-[ -n "$AUTOINSTALL_MSG" ] && COMBINED_MSG="$AUTOINSTALL_MSG"
-[ -n "$STATUSLINE_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${STATUSLINE_MSG}"
-if [ -n "$COMBINED_MSG" ]; then
-  jq -n --arg msg "$COMBINED_MSG" '{systemMessage: $msg}'
+if [ -n "$STATUSLINE_MSG" ]; then
+  jq -n --arg msg "$STATUSLINE_MSG" '{systemMessage: $msg}'
 fi
 
-claude_nudge_swiftbar
 exit 0

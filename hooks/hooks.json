@@ -1,5 +1,5 @@
 {
-  "description": "Hold macOS caffeinate only while Claude Code is actively processing; track per-session state under /tmp/claude-caffeinate for the optional SwiftBar dashboard.",
+  "description": "Hold macOS caffeinate only while Claude Code is actively processing; track per-session state under /tmp/claude-caffeinate; wrap the user's statusLine with a ☕/💤 indicator.",
   "hooks": {
     "SessionStart": [
       {

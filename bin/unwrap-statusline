@@ -1,0 +1,43 @@
+#!/bin/bash
+# Revert the auto-wrapped statusLine installed by claude-session-start.sh.
+#
+# If the plugin ran SessionStart after first install, it replaced your
+# statusLine.command with a wrapper that appends the ☕/💤 indicator and
+# backed up the original at ${CLAUDE_PLUGIN_DATA}/original-statusline-command.
+# This script restores that original, leaving refreshInterval in place.
+#
+# Idempotent: exits cleanly if no wrap is in effect.
+set -euo pipefail
+
+DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.local/state/claude-code-caffeinate}"
+MARKER="$DATA_DIR/statusline-wrapped"
+BACKUP="$DATA_DIR/original-statusline-command"
+SETTINGS="$HOME/.claude/settings.json"
+
+if [ ! -f "$MARKER" ]; then
+  echo "No statusLine wrap marker at $MARKER — nothing to revert."
+  exit 0
+fi
+if [ ! -f "$BACKUP" ]; then
+  echo "Marker present but backup missing at $BACKUP — cannot auto-restore." >&2
+  echo "Edit $SETTINGS manually and remove $MARKER when done." >&2
+  exit 1
+fi
+if [ ! -f "$SETTINGS" ]; then
+  echo "No $SETTINGS — nothing to revert." >&2
+  exit 1
+fi
+command -v jq >/dev/null 2>&1 || { echo "jq required" >&2; exit 1; }
+
+orig=$(cat "$BACKUP")
+tmp=$(mktemp)
+if jq --arg cmd "$orig" '.statusLine.command = $cmd' "$SETTINGS" > "$tmp"; then
+  mv "$tmp" "$SETTINGS"
+  rm -f "$MARKER"
+  echo "Restored statusLine.command from $BACKUP."
+  echo "refreshInterval left in place (harmless; delete manually if undesired)."
+else
+  rm -f "$tmp"
+  echo "Failed to patch $SETTINGS; backup preserved at $BACKUP." >&2
+  exit 1
+fi

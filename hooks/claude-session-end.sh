@@ -22,5 +22,4 @@ if [ -n "$SID" ]; then
 fi
 claude_kill_caffeinate_if_idle
 
-claude_nudge_swiftbar
 exit 0

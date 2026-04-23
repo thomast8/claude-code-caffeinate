@@ -7,8 +7,9 @@
 # wrapper runs the original command, then appends a ☕/💤 indicator on
 # the same line.
 #
-# Fully reversible via `install-swiftbar --uninstall` which restores the
-# user's original statusLine config.
+# Fully reversible via `unwrap-statusline` which restores the user's original
+# statusLine config from the backup at ${CLAUDE_PLUGIN_DATA}/original-
+# statusline-command.
 set -u
 
 INPUT=$(cat)

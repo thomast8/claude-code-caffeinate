@@ -1,7 +1,7 @@
 {
   "name": "claude-code-caffeinate",
-  "version": "1.5.0",
-  "description": "Keep your Mac awake only while Claude Code is actively processing, with a SwiftBar menu bar dashboard showing per-session activity and token usage.",
+  "version": "2.0.0",
+  "description": "Keep your Mac awake only while Claude Code is actively processing. Tracks per-session activity and token usage under /tmp/claude-caffeinate, with a statusLine wrapper that appends a ☕/💤 indicator.",
   "author": {
     "name": "Thomas Tiotto"
   },
